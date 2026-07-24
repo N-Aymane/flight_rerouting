@@ -1,14 +1,27 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { ChevronDown, AlertTriangle, TrendingUp, Users, DollarSign, CheckCircle2, AlertCircle, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { AlertTriangle, TrendingUp, Users, DollarSign, CheckCircle2, Zap } from 'lucide-react'
 import { TopNavigation } from '@/components/TopNavigation'
 import { MetricCard } from '@/components/MetricCard'
 import { FlightList } from '@/components/FlightList'
 import { FlightDetailsPanel } from '@/components/FlightDetailsPanel'
+import { fetchPredictedFlights, type FlightApiInput } from '@/lib/model-api'
+
+type FlightStatus = 'critical' | 'warning' | 'safe'
+
+interface Flight {
+  id: string
+  carrier: string
+  route: string
+  departureTime: string
+  disruptionProbability: number
+  affectedPassengers: number
+  status: FlightStatus
+}
 
 // Mock data for flights
-const mockFlights = [
+const mockFlights: Flight[] = [
   {
     id: 'RAM101',
     carrier: 'RAM',
@@ -69,13 +82,66 @@ const mockPassengers = [
 ]
 
 export default function Page() {
-  const [selectedFlight, setSelectedFlight] = useState(mockFlights[0])
+  const [flights, setFlights] = useState<Flight[]>(mockFlights)
+  const [selectedFlight, setSelectedFlight] = useState<Flight>(mockFlights[0])
   const [hub, setHub] = useState('Casablanca CMN')
+  const [modelStatus, setModelStatus] = useState('Connecting to model...')
+
+  useEffect(() => {
+    let active = true
+
+    const loadPredictions = async () => {
+      const requestFlights: FlightApiInput[] = mockFlights.map((flight) => ({
+        flight_id: flight.id,
+        carrier: flight.carrier,
+        route: flight.route,
+        departure_time: flight.departureTime,
+        hub,
+        affected_passengers: flight.affectedPassengers,
+        features: {
+          disruption_probability_hint: flight.disruptionProbability / 100,
+          passenger_count: flight.affectedPassengers,
+        },
+      }))
+
+      try {
+        const response = await fetchPredictedFlights(requestFlights)
+
+        if (!active) {
+          return
+        }
+
+        const nextFlights = response.flights.map((flight, index) => ({
+          ...mockFlights[index],
+          disruptionProbability: Math.round(flight.delay_probability * 100),
+          status: flight.status,
+        }))
+
+        setFlights(nextFlights)
+        setSelectedFlight((currentFlight) => nextFlights.find((flight) => flight.id === currentFlight.id) ?? nextFlights[0])
+        setModelStatus(response.model_ready && !response.used_fallback ? `Model live: ${response.source}` : `Fallback mode: ${response.source}`)
+      } catch {
+        if (!active) {
+          return
+        }
+
+        setFlights(mockFlights)
+        setSelectedFlight(mockFlights[0])
+        setModelStatus('Fallback mode: backend unavailable')
+      }
+    }
+
+    void loadPredictions()
+
+    return () => {
+      active = false
+    }
+  }, [hub])
 
   // Calculate metrics
   const metrics = useMemo(() => {
-    const criticalAlerts = mockFlights.filter((f) => f.status === 'critical').length
-    const affectedPassengers = mockFlights.reduce((sum, f) => sum + f.affectedPassengers, 0)
+    const criticalAlerts = flights.filter((f) => f.status === 'critical').length
+    const affectedPassengers = flights.reduce((sum, f) => sum + f.affectedPassengers, 0)
     const protectedMargin = 87.3
     const automatedRebookings = 256
 
@@ -85,7 +151,7 @@ export default function Page() {
       protectedMargin,
       automatedRebookings,
     }
-  }, [])
+  }, [flights])
 
   // Financial penalties calculation
   const financialData = useMemo(() => {
@@ -111,7 +177,7 @@ export default function Page() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* TOP NAVIGATION & STATS */}
-      <TopNavigation hub={hub} setHub={setHub} />
+      <TopNavigation hub={hub} setHub={setHub} modelStatus={modelStatus} />
 
       {/* METRICS BAR */}
       <div className="border-b border-border bg-card/50 backdrop-blur-sm">
@@ -164,7 +230,7 @@ export default function Page() {
 
               <div className="overflow-y-auto flex-1 max-h-[600px]">
                 <FlightList
-                  flights={mockFlights}
+                  flights={flights}
                   selectedFlight={selectedFlight}
                   onSelectFlight={setSelectedFlight}
                 />

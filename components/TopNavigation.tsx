@@ -6,9 +6,10 @@ import { useTheme } from '@/lib/theme-context'
 interface TopNavigationProps {
   hub: string
   setHub: (hub: string) => void
+  modelStatus: string
 }
 
-export function TopNavigation({ hub, setHub }: TopNavigationProps) {
+export function TopNavigation({ hub, setHub, modelStatus }: TopNavigationProps) {
   const hubs = ['Casablanca CMN', 'Marrakech RAK', 'Fez FEZ', 'Tangier TNG']
   const { theme, toggleTheme } = useTheme()
 
@@ -29,7 +30,7 @@ export function TopNavigation({ hub, setHub }: TopNavigationProps) {
         {/* CENTER: Status */}
         <div className="flex items-center gap-3 px-4 py-2 bg-background/50 rounded-lg border border-border">
           <div className="w-2 h-2 bg-safe-emerald rounded-full animate-pulse" />
-          <span className="text-sm font-medium">System Active</span>
+          <span className="text-sm font-medium">{modelStatus}</span>
         </div>
 
         {/* RIGHT: Hub Selector and Theme Toggle */}

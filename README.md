@@ -8,6 +8,7 @@ A modern Next.js dashboard concept for airline irregular operations (iROPS) plan
 - Lists flights with risk status, passenger impact, and departure times.
 - Displays a detailed panel for the selected flight, including financial exposure and optimization savings.
 - Uses mock data so the interface can be explored without any backend setup.
+- Includes a FastAPI backend that loads the XGBoost joblib model when the artifact is compatible with the local Python runtime.
 
 ## Tech Stack
 
@@ -22,6 +23,7 @@ A modern Next.js dashboard concept for airline irregular operations (iROPS) plan
 
 - Node.js 20 or newer
 - pnpm 9 or newer
+- Python 3.12 or newer for the backend API
 
 ## Setup
 
@@ -37,7 +39,15 @@ pnpm install
 pnpm dev
 ```
 
-3. Open the app in your browser:
+3. Start the model backend in a second terminal:
+
+```bash
+cd backend
+"..\\.venv\\Scripts\\python.exe" -m pip install -r requirements.txt
+"..\\.venv\\Scripts\\python.exe" -m uvicorn main:app --reload --port 8000
+```
+
+4. Open the app in your browser:
 
 ```text
 http://localhost:3000
@@ -49,6 +59,7 @@ http://localhost:3000
 - `pnpm build` - create a production build
 - `pnpm start` - start the production server
 - `pnpm lint` - run ESLint across the project
+- `cd backend && uvicorn main:app --reload --port 8000` - run the model API locally
 
 ## Project Structure
 
@@ -60,7 +71,11 @@ http://localhost:3000
 
 ## How The Dashboard Is Organized
 
-The main page in `app/page.tsx` wires together the dashboard shell, summary metrics, the flight prediction list, and the selected-flight details panel. Flight data and passenger data are mocked in the page for now, which makes the UI easy to preview and extend later with API data.
+The main page in `app/page.tsx` now requests predictions from the backend and uses them to enrich the flight list. If the joblib artifact cannot be deserialized in the current Python environment, the backend falls back to a deterministic score so the dashboard still renders while you refine the model contract later.
+
+The backend entry point is `backend/main.py`. It loads `xgb_model_ohefixed.joblib`, exposes `/health`, `/predict`, and `/predict/batch`, and accepts an optional `features` map so you can add the exact model inputs later without changing the route shape.
+
+Important: the current `xgb_model_ohefixed.joblib` artifact is compatible with `xgboost==2.1.4` in this workspace. Newer major/minor versions may fail to deserialize this serialized model object.
 
 ## Customization Notes
 
